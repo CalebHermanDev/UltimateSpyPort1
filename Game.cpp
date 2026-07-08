@@ -4,51 +4,197 @@
 
 using namespace std;
 
+Game::Game()
+{
+    levelNames.push_back("A New Enemy");
+    levelNames.push_back("The Truth of the Weapon");
+}
+
 void Game::run()
 {
-    showMenu();
+    bool quit = false;
 
-    gameOver = false;
-
-    while (!gameOver)
+    while (!quit)
     {
-        printBoard();
-        cout << "\nMove (WASD) or Q to quit: ";
+        int levelChoice = showMenu();
 
-        char input;
-        cin >> input;
-        input = toupper(input);
-
-        if (input == 'Q')
-            break;
-
-        movePlayer(input);
-        if (!gameOver)
+        if (levelChoice == 0)
         {
-            moveGuards();
+            quit = true;
+            break;
         }
 
-        if (!gameOver && playerSeen())
+        loadLevel(levelChoice);
+        gameOver = false;
+
+        while (!gameOver)
         {
             printBoard();
+            cout << "\nMove (WASD) or Q to quit: ";
 
-            cout << "\nYou were spotted!\n";
+            string line;
+            getline(cin, line);
 
-            gameOver = true;
+            if (!cin)
+            {
+                quit = true;
+                break;
+            }
+
+            line = trim(line);
+
+            if (line.size() != 1)
+            {
+                cout << "\nInvalid input. Please enter W, A, S, D, or Q.\n";
+                continue;
+            }
+
+            char input = toupper(line[0]);
+
+            if (input != 'W' && input != 'A' && input != 'S' &&
+                input != 'D' && input != 'Q')
+            {
+                cout << "\nInvalid input. Please enter W, A, S, D, or Q.\n";
+                continue;
+            }
+
+            if (input == 'Q')
+            {
+                quit = true;
+                break;
+            }
+
+            bool moved = movePlayer(input);
+
+            if (gameOver)
+            {
+                break;
+            }
+
+            if (!moved)
+            {
+                // Move was blocked (e.g. a wall), so the turn was not spent.
+                continue;
+            }
+
+            moveGuards();
+
+            if (!gameOver && playerSeen())
+            {
+                printBoard();
+                cout << "\nYou were spotted!\n";
+                gameOver = true;
+            }
         }
+
+        if (quit)
+        {
+            break;
+        }
+
+        cout << "\nPress ENTER to return to the menu...";
+        string dummy;
+        getline(cin, dummy);
+    }
+
+    cout << "\nThanks for playing Ultra-Spy!\n";
+}
+
+int Game::showMenu()
+{
+    while (true)
+    {
+        cout << "\nWelcome to Ultra-Spy!\n";
+        cout << "Select a level:\n";
+
+        for (int i = 0; i < levelNames.size(); i++)
+        {
+            cout << " " << (i + 1) << ") " << levelNames[i] << "\n";
+        }
+
+        cout << "\nEnter a level number or name (or Q to quit): ";
+
+        string line;
+        getline(cin, line);
+
+        if (!cin)
+        {
+            return 0;
+        }
+
+        line = trim(line);
+        string upperLine = toUpper(line);
+
+        if (upperLine == "Q")
+        {
+            return 0;
+        }
+
+        if (isNumber(line))
+        {
+            int choice = stoi(line);
+
+            if (choice >= 1 && choice <= (int)levelNames.size())
+            {
+                return choice;
+            }
+        }
+        else
+        {
+            for (int i = 0; i < levelNames.size(); i++)
+            {
+                if (toUpper(levelNames[i]) == upperLine)
+                {
+                    return i + 1;
+                }
+            }
+        }
+
+        cout << "\nInvalid selection. Please try again.\n";
     }
 }
 
-void Game::showMenu()
+bool Game::isNumber(const string &text)
 {
-    cout << "Welcome to Ultra-Spy!\n";
-    cout << "Select a level:\n";
-    cout << "1) A New Enemy\n";
-    cout << "2) The Truth of the Weapon\n\n";
-    int choice;
-    cin >> choice;
+    if (text.empty())
+        return false;
 
-    loadLevel(choice);
+    for (int i = 0; i < text.size(); i++)
+    {
+        if (!isdigit(text[i]))
+            return false;
+    }
+
+    return true;
+}
+
+string Game::toUpper(const string &text)
+{
+    string result = text;
+
+    for (int i = 0; i < result.size(); i++)
+    {
+        result[i] = toupper(result[i]);
+    }
+
+    return result;
+}
+
+string Game::trim(const string &text)
+{
+    int start = 0;
+    int end = (int)text.size() - 1;
+
+    while (start <= end && isspace(text[start]))
+        start++;
+
+    while (end >= start && isspace(text[end]))
+        end--;
+
+    if (start > end)
+        return "";
+
+    return text.substr(start, end - start + 1);
 }
 
 void Game::loadLevel(int levelNumber)
@@ -87,25 +233,9 @@ void Game::loadLevel(int levelNumber)
         playerRow = 1;
         playerCol = 1;
 
-        guards.clear();
-
         guards.push_back(Guard(1, 8, 'v'));
         guards.push_back(Guard(3, 5, '>'));
         guards.push_back(Guard(5, 3, '^'));
-    }
-}
-
-void Game::findPlayer()
-{
-    if (board.size() == 6)
-    {
-        playerRow = 4;
-        playerCol = 1;
-    }
-    else
-    {
-        playerRow = 1;
-        playerCol = 1;
     }
 }
 
@@ -149,7 +279,7 @@ bool Game::positionOccupied(int row, int col)
 
     return false;
 }
-void Game::movePlayer(char input)
+bool Game::movePlayer(char input)
 {
     int newRow = playerRow;
     int newCol = playerCol;
@@ -164,16 +294,23 @@ void Game::movePlayer(char input)
         newCol++;
 
     if (board[newRow][newCol] == '#')
-        return;
+    {
+        cout << "\nYou can't walk through walls!\n";
+        return false;
+    }
 
     for (int i = 0; i < guards.size(); i++)
     {
         if (newRow == guards[i].getRow() &&
             newCol == guards[i].getCol())
         {
+            playerRow = newRow;
+            playerCol = newCol;
+
+            printBoard();
             cout << "\nYou were caught!\n";
             gameOver = true;
-            return;
+            return true;
         }
     }
 
@@ -185,10 +322,11 @@ void Game::movePlayer(char input)
         printBoard();
         cout << "\nYou win!\n";
         gameOver = true;
-        return;
+        return true;
     }
     playerRow = newRow;
     playerCol = newCol;
+    return true;
 }
 void Game::moveGuards()
 {
@@ -239,6 +377,9 @@ void Game::moveGuards()
         }
         if (newRow == playerRow && newCol == playerCol)
         {
+            guards[i].setPosition(newRow, newCol);
+
+            printBoard();
             cout << "\nYou were caught!\n";
             gameOver = true;
             return;
