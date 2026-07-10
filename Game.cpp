@@ -8,6 +8,10 @@ Game::Game()
 {
     levelNames.push_back("A New Enemy");
     levelNames.push_back("The Truth of the Weapon");
+    levelNames.push_back("Patrolling Rectangle");
+    levelNames.push_back("Complex Patrol");
+    levelNames.push_back("Multi-Group Doors");
+    levelNames.push_back("Switch Trap");
 }
 
 void Game::run()
@@ -30,7 +34,7 @@ void Game::run()
         while (!gameOver)
         {
             printBoard();
-            cout << "\nMove (WASD) or Q to quit: ";
+            cout << "\nMove (WASD), Inspect (I), or Q to quit: ";
 
             string line;
             getline(cin, line);
@@ -43,18 +47,18 @@ void Game::run()
 
             line = trim(line);
 
-            if (line.size() != 1)
+            if (line.empty())
             {
-                cout << "\nInvalid input. Please enter W, A, S, D, or Q.\n";
+                cout << "\nInvalid input. Please enter W, A, S, D, I, or Q.\n";
                 continue;
             }
 
             char input = toupper(line[0]);
 
             if (input != 'W' && input != 'A' && input != 'S' &&
-                input != 'D' && input != 'Q')
+                input != 'D' && input != 'Q' && input != 'I')
             {
-                cout << "\nInvalid input. Please enter W, A, S, D, or Q.\n";
+                cout << "\nInvalid input. Please enter W, A, S, D, I, or Q.\n";
                 continue;
             }
 
@@ -62,6 +66,12 @@ void Game::run()
             {
                 quit = true;
                 break;
+            }
+
+            if (input == 'I')
+            {
+                handleInspect();
+                continue;
             }
 
             bool moved = movePlayer(input);
@@ -73,7 +83,6 @@ void Game::run()
 
             if (!moved)
             {
-                // Move was blocked (e.g. a wall), so the turn was not spent.
                 continue;
             }
 
@@ -200,6 +209,8 @@ string Game::trim(const string &text)
 void Game::loadLevel(int levelNumber)
 {
     guards.clear();
+    doors.clear();
+    switches.clear();
 
     if (levelNumber == 1)
     {
@@ -218,7 +229,7 @@ void Game::loadLevel(int levelNumber)
         guards.push_back(Guard(1, 5, 'v'));
         guards.push_back(Guard(2, 1, '>'));
     }
-    else
+    else if (levelNumber == 2)
     {
         board =
             {
@@ -237,11 +248,132 @@ void Game::loadLevel(int levelNumber)
         guards.push_back(Guard(3, 5, '>'));
         guards.push_back(Guard(5, 3, '^'));
     }
+    else if (levelNumber == 3)
+    {
+        // Patrolling Rectangle - guard walks in a rectangle with clockwise turns
+        board =
+            {
+                "#############",
+                "#     #   $ #",
+                "#     #     #",
+                "#           #",
+                "#     #     #",
+                "#############"};
+
+        playerRow = 2;
+        playerCol = 2;
+
+        // Patrolling guard that will move: (1,5)->(1,10)->(4,10)->(4,5)->(1,5) etc.
+        guards.push_back(Guard(1, 5, '>', true)); // true = patrolling
+    }
+    else if (levelNumber == 4)
+    {
+        // Complex Patrol - guard follows a more complex path
+        board =
+            {
+                "###############",
+                "#       #     #",
+                "##    # #     #",
+                "#     # #     #",
+                "#  #          #",
+                "#  ####  ######",
+                "#   #         #",
+                "#   #   ####  #",
+                "#   #      # $#",
+                "###############"};
+
+        playerRow = 2;
+        playerCol = 2;
+
+        // Patrolling guard at a starting position
+        guards.push_back(Guard(2, 11, '<', true));
+    }
+    else if (levelNumber == 5)
+    {
+        // Multi-Group Doors/Switches
+        board =
+            {
+                "################",
+                "#             $#",
+                "#              #",
+                "#              #",
+                "#   #  #  ######",
+                "#      #       #",
+                "################"};
+
+        playerRow = 5;
+        playerCol = 1;
+
+        // Red group (group 0): switch at (5,5), doors at (1,7) and (2,7) and (3,7)
+        switches.push_back(Switch(5, 5, 0));
+        doors.push_back(Door(1, 7, 0));
+        doors.push_back(Door(2, 7, 0));
+        doors.push_back(Door(3, 7, 0));
+
+        // Blue group (group 1): switch at (5,14), doors at (1,12), (2,12), (3,12)
+        switches.push_back(Switch(5, 14, 1));
+        doors.push_back(Door(1, 12, 1));
+        doors.push_back(Door(2, 12, 1));
+        doors.push_back(Door(3, 12, 1));
+
+        // Guard moving around
+        guards.push_back(Guard(4, 3, '^'));
+    }
+    else if (levelNumber == 6)
+    {
+        board =
+            {
+                "########################",
+                "#                  # $ #",
+                "#     ######       #   #",
+                "#     #            #   #",
+                "#     #                #",
+                "#     #                #",
+                "#     #    #       #   #",
+                "########################"};
+
+        playerRow = 1;
+        playerCol = 1;
+
+        // Red group (0)
+        switches.push_back(Switch(5, 5, 0));
+        doors.push_back(Door(1, 6, 0));
+
+        // Blue group (1)
+        switches.push_back(Switch(6, 18, 1));
+        doors.push_back(Door(3, 11, 1));
+        doors.push_back(Door(4, 11, 1));
+        doors.push_back(Door(5, 11, 1));
+
+        // Green group (2)
+        switches.push_back(Switch(6, 8, 2));
+        doors.push_back(Door(4, 19, 2));
+        doors.push_back(Door(5, 19, 2));
+
+        // Linear guard moving up and down
+        guards.push_back(Guard(1, 5, 'v'));
+
+        // Clockwise patrolling guard on right
+        guards.push_back(Guard(1, 13, '>', true));
+    }
 }
 
 void Game::printBoard()
 {
     vector<string> tempBoard = board;
+
+    for (int i = 0; i < doors.size(); i++)
+    {
+        if (!doors[i].getIsOpen())
+        {
+            tempBoard[doors[i].getRow()][doors[i].getCol()] = 'D';
+        }
+    }
+
+    for (int i = 0; i < switches.size(); i++)
+    {
+        tempBoard[switches[i].getRow()][switches[i].getCol()] = 'S';
+    }
 
     for (int i = 0; i < guards.size(); i++)
     {
@@ -264,6 +396,14 @@ bool Game::positionOccupied(int row, int col)
 
     if (board[row][col] == '$')
         return true;
+
+    for (int i = 0; i < doors.size(); i++)
+    {
+        if (doors[i].getRow() == row && doors[i].getCol() == col && !doors[i].getIsOpen())
+        {
+            return true;
+        }
+    }
 
     if (row == playerRow && col == playerCol)
         return true;
@@ -299,6 +439,15 @@ bool Game::movePlayer(char input)
         return false;
     }
 
+    for (int i = 0; i < doors.size(); i++)
+    {
+        if (doors[i].getRow() == newRow && doors[i].getCol() == newCol && !doors[i].getIsOpen())
+        {
+            cout << "\nYou can't walk through closed doors!\n";
+            return false;
+        }
+    }
+
     for (int i = 0; i < guards.size(); i++)
     {
         if (newRow == guards[i].getRow() &&
@@ -326,6 +475,9 @@ bool Game::movePlayer(char input)
     }
     playerRow = newRow;
     playerCol = newCol;
+
+    triggerSwitches(playerRow, playerCol);
+
     return true;
 }
 void Game::moveGuards()
@@ -351,7 +503,14 @@ void Game::moveGuards()
 
         if (positionOccupied(newRow, newCol))
         {
-            guards[i].reverseDirection();
+            if (guards[i].getIsPatrolling())
+            {
+                guards[i].turnClockwise();
+            }
+            else
+            {
+                guards[i].reverseDirection();
+            }
 
             dir = guards[i].getDirection();
 
@@ -367,8 +526,6 @@ void Game::moveGuards()
             else if (dir == '>')
                 newCol++;
 
-            // If the opposite direction is blocked too,
-            // stay where you are.
             if (positionOccupied(newRow, newCol))
             {
                 newRow = row;
@@ -386,6 +543,8 @@ void Game::moveGuards()
         }
 
         guards[i].setPosition(newRow, newCol);
+
+        triggerSwitches(newRow, newCol);
     }
 }
 
@@ -429,6 +588,20 @@ bool Game::playerSeen()
                 break;
             }
 
+            bool doorBlocked = false;
+            for (int k = 0; k < doors.size(); k++)
+            {
+                if (doors[k].getRow() == currentRow && doors[k].getCol() == currentCol && !doors[k].getIsOpen())
+                {
+                    doorBlocked = true;
+                    break;
+                }
+            }
+            if (doorBlocked)
+            {
+                break;
+            }
+
             bool blocked = false;
 
             for (int j = 0; j < guards.size(); j++)
@@ -452,4 +625,111 @@ bool Game::playerSeen()
     }
 
     return false;
+}
+
+void Game::handleInspect()
+{
+    cout << "\nEnter row (0-indexed): ";
+    string rowStr;
+    getline(cin, rowStr);
+    rowStr = trim(rowStr);
+
+    cout << "Enter column (0-indexed): ";
+    string colStr;
+    getline(cin, colStr);
+    colStr = trim(colStr);
+
+    if (!isNumber(rowStr) || !isNumber(colStr))
+    {
+        cout << "\nInvalid input. Please enter valid numbers.\n";
+        return;
+    }
+
+    int row = stoi(rowStr);
+    int col = stoi(colStr);
+
+    if (row < 0 || row >= (int)board.size() || col < 0 || col >= (int)board[row].size())
+    {
+        cout << "\nTile is out of bounds.\n";
+        return;
+    }
+
+    cout << "\n--- Inspection ---\n";
+
+    if (row == playerRow && col == playerCol)
+    {
+        cout << "Tile contains: Player (@)\n";
+        return;
+    }
+
+    for (int i = 0; i < guards.size(); i++)
+    {
+        if (guards[i].getRow() == row && guards[i].getCol() == col)
+        {
+            cout << "Tile contains: Guard (";
+            if (guards[i].getIsPatrolling())
+                cout << "Patrolling, ";
+            else
+                cout << "Linear, ";
+            cout << "Direction: " << guards[i].getDirection() << ")\n";
+            return;
+        }
+    }
+
+    for (int i = 0; i < doors.size(); i++)
+    {
+        if (doors[i].getRow() == row && doors[i].getCol() == col)
+        {
+            cout << "Tile contains: Door (Group " << doors[i].getGroupId() << ", ";
+            cout << (doors[i].getIsOpen() ? "Open" : "Closed") << ")\n";
+            return;
+        }
+    }
+
+    for (int i = 0; i < switches.size(); i++)
+    {
+        if (switches[i].getRow() == row && switches[i].getCol() == col)
+        {
+            cout << "Tile contains: Switch (Group " << switches[i].getGroupId() << ")\n";
+            return;
+        }
+    }
+
+    char tile = board[row][col];
+    if (tile == '#')
+    {
+        cout << "Tile contains: Wall (#)\n";
+    }
+    else if (tile == '$')
+    {
+        cout << "Tile contains: Goal ($)\n";
+    }
+    else if (tile == ' ')
+    {
+        cout << "Tile contains: Empty space\n";
+    }
+    else
+    {
+        cout << "Tile contains: " << tile << "\n";
+    }
+}
+
+void Game::triggerSwitches(int row, int col)
+{
+    for (int i = 0; i < switches.size(); i++)
+    {
+        if (switches[i].getRow() == row && switches[i].getCol() == col)
+        {
+            int groupId = switches[i].getGroupId();
+            cout << "\nSwitch group " << groupId << " toggled!\n";
+
+            for (int j = 0; j < doors.size(); j++)
+            {
+                if (doors[j].getGroupId() == groupId)
+                {
+                    doors[j].toggle();
+                }
+            }
+        }
+    }
 }

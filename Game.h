@@ -3,6 +3,8 @@
 #include <vector>
 #include <string>
 #include "Guard.h"
+#include "Door.h"
+#include "Switch.h"
 
 using namespace std;
 
@@ -11,6 +13,8 @@ class Game
 private:
     vector<string> board;
     vector<Guard> guards;
+    vector<Door> doors;
+    vector<Switch> switches;
     vector<string> levelNames;
 
     int playerRow;
@@ -25,6 +29,8 @@ private:
     void loadLevel(int levelNumber);
     void printBoard();
     bool movePlayer(char input);
+    void handleInspect();
+    void triggerSwitches(int row, int col);
 
     bool isNumber(const string &text);
     string toUpper(const string &text);
