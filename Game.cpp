@@ -6,6 +6,7 @@ using namespace std;
 
 Game::Game()
 {
+    gameOver = false;
     levelNames.push_back("A New Enemy");
     levelNames.push_back("The Truth of the Weapon");
     levelNames.push_back("Patrolling Rectangle");
@@ -47,7 +48,7 @@ void Game::run()
 
             line = trim(line);
 
-            if (line.empty())
+            if (line.size() != 1)
             {
                 cout << "\nInvalid input. Please enter W, A, S, D, I, or Q.\n";
                 continue;
@@ -263,7 +264,6 @@ void Game::loadLevel(int levelNumber)
         playerRow = 2;
         playerCol = 2;
 
-        // Patrolling guard that will move: (1,5)->(1,10)->(4,10)->(4,5)->(1,5) etc.
         guards.push_back(Guard(1, 5, '>', true)); // true = patrolling
     }
     else if (levelNumber == 4)
@@ -433,6 +433,13 @@ bool Game::movePlayer(char input)
     else if (input == 'D')
         newCol++;
 
+    if (newRow < 0 || newRow >= (int)board.size() ||
+        newCol < 0 || newCol >= (int)board[newRow].size())
+    {
+        cout << "\nYou can't move there!\n";
+        return false;
+    }
+
     if (board[newRow][newCol] == '#')
     {
         cout << "\nYou can't walk through walls!\n";
@@ -500,6 +507,16 @@ void Game::moveGuards()
             newCol--;
         else if (dir == '>')
             newCol++;
+
+        if (newRow == playerRow && newCol == playerCol)
+        {
+            guards[i].setPosition(newRow, newCol);
+
+            printBoard();
+            cout << "\nYou were caught!\n";
+            gameOver = true;
+            return;
+        }
 
         if (positionOccupied(newRow, newCol))
         {
