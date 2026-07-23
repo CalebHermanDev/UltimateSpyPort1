@@ -4,7 +4,6 @@
 #include <fstream>
 #include <sstream>
 #include <filesystem>
-#include <algorithm>
 
 using namespace std;
 
@@ -140,7 +139,7 @@ int Game::showMenu()
     while (true)
     {
         cout << "\nWelcome to Ultra-Spy!\n";
-        cout << "Main levels:\n";
+        cout << "Select a level:\n";
 
         for (int i = 0; i < levelNames.size(); i++)
         {
@@ -148,9 +147,9 @@ int Game::showMenu()
         }
 
         cout << "\nN) Create a new level";
-        cout << "\nE) Edit a custom level";
-        cout << "\nL) Load a custom level";
-        cout << "\nEnter a main level number or name (or Q to quit): ";
+        cout << "\nE) Edit an existing level";
+        cout << "\nL) Load a level from a file";
+        cout << "\nEnter a level number or name (or Q to quit): ";
 
         string line;
         getline(cin, line);
@@ -180,11 +179,22 @@ int Game::showMenu()
 
         if (upperLine == "L" || upperLine == "LOAD")
         {
-            string name = chooseLevelFile();
-            if (!name.empty() && loadLevelFromFile(name))
+            cout << "Enter a level file name (without .lvl if you want): ";
+            string fileName;
+            getline(cin, fileName);
+            fileName = trim(fileName);
+
+            if (fileName.empty())
+            {
+                cout << "\nInvalid file name.\n";
+                continue;
+            }
+
+            if (loadLevelFromFile(fileName))
             {
                 return -2;
             }
+
             continue;
         }
 
@@ -205,6 +215,11 @@ int Game::showMenu()
                 {
                     return i + 1;
                 }
+            }
+
+            if (loadLevelFromFile(line))
+            {
+                return -2;
             }
         }
 
@@ -257,6 +272,12 @@ string Game::trim(const string &text) const
 
 void Game::loadLevel(int levelNumber)
 {
+    if (levelNumber > 6 && levelNumber <= (int)levelNames.size())
+    {
+        loadLevelFromFile(levelNames[levelNumber - 1]);
+        return;
+    }
+
     guards.clear();
     doors.clear();
     switches.clear();
@@ -532,6 +553,7 @@ bool Game::loadLevelFromFile(const string &fileName)
         }
     }
 
+    addToLevelNames(baseName);
     cout << "\nLoaded level '" << baseName << "'.\n";
     return true;
 }
@@ -989,11 +1011,15 @@ void Game::editLevel(const string &levelName, int rows, int cols)
 
 void Game::editExistingLevel()
 {
-    cout << "\nEdit a custom level\n";
-    string name = chooseLevelFile();
+    cout << "\nEdit an existing level\n";
+    cout << "Enter the name of the level to edit (with or without .lvl): ";
+    string name;
+    getline(cin, name);
+    name = trim(name);
 
     if (name.empty())
     {
+        cout << "\nInvalid level name.\n";
         return;
     }
 
@@ -1003,90 +1029,6 @@ void Game::editExistingLevel()
     }
 
     runEditor();
-}
-
-vector<string> Game::listLevelFiles() const
-{
-    vector<string> files;
-    string dir = getLevelDirectory();
-
-    if (!filesystem::exists(dir))
-    {
-        return files;
-    }
-
-    for (const auto &entry : filesystem::directory_iterator(dir))
-    {
-        if (!entry.is_regular_file())
-        {
-            continue;
-        }
-        if (toUpper(entry.path().extension().string()) == ".LVL")
-        {
-            files.push_back(entry.path().stem().string());
-        }
-    }
-
-    sort(files.begin(), files.end());
-    return files;
-}
-
-string Game::chooseLevelFile()
-{
-    vector<string> files = listLevelFiles();
-
-    if (files.empty())
-    {
-        cout << "\nNo custom levels have been saved yet.\n";
-        return "";
-    }
-
-    while (true)
-    {
-        cout << "\nCustom levels:\n";
-        for (int i = 0; i < (int)files.size(); i++)
-        {
-            cout << " " << (i + 1) << ") " << files[i] << "\n";
-        }
-        cout << "\nEnter a number or name to select (or B to go back): ";
-
-        string line;
-        getline(cin, line);
-        if (!cin)
-        {
-            return "";
-        }
-
-        line = trim(line);
-        string upperLine = toUpper(line);
-
-        if (upperLine == "B" || upperLine == "BACK")
-        {
-            return "";
-        }
-
-        if (isNumber(line))
-        {
-            int choice = stoi(line);
-            if (choice >= 1 && choice <= (int)files.size())
-            {
-                return files[choice - 1];
-            }
-        }
-        else
-        {
-            string base = stripLvlExtension(line);
-            for (int i = 0; i < (int)files.size(); i++)
-            {
-                if (toUpper(files[i]) == toUpper(base))
-                {
-                    return files[i];
-                }
-            }
-        }
-
-        cout << "\nInvalid selection. Please try again.\n";
-    }
 }
 
 void Game::runEditor()
@@ -1123,6 +1065,7 @@ void Game::runEditor()
         {
             if (saveLevelToFile(currentLevelName))
             {
+                addToLevelNames(currentLevelName);
                 cout << "\nLevel saved successfully.\n";
             }
             return;
@@ -1237,7 +1180,12 @@ bool Game::readTile(int &row, int &col)
 
     return true;
 }
-
+/*
+Has 2 modes of walls. mode 1 is single wall placement, mode 2 is filling a 
+box/range of walls. If the box is not a straight line, the user can choose 
+to fill it solid or just outline it. This isn't part of the original acceptance criteria
+its just a little something extra I added for ease of use when creating levels.
+*/
 void Game::handleWallPlacement()
 {
     cout << "Wall mode (1=single wall, 2=fill a box/range): ";
@@ -1269,14 +1217,12 @@ void Game::handleWallPlacement()
     {
         return;
     }
-
     cout << "Enter the BOTTOM-RIGHT corner of the box.\n";
     int r2, c2;
     if (!readTile(r2, c2))
     {
         return;
     }
-
     int topRow = r1 < r2 ? r1 : r2;
     int bottomRow = r1 < r2 ? r2 : r1;
     int leftCol = c1 < c2 ? c1 : c2;
@@ -1301,7 +1247,6 @@ void Game::handleWallPlacement()
 
         outlineOnly = (fill == "2");
     }
-
     int count = 0;
     for (int r = topRow; r <= bottomRow; r++)
     {
@@ -1320,7 +1265,10 @@ void Game::handleWallPlacement()
 
     cout << "\nPlaced " << count << " wall" << (count == 1 ? "" : "s") << ".\n";
 }
-
+/*
+This is here in case the user wants to resize the level after initially creating it. 
+It will remove any objects that are outside the new size.
+*/
 void Game::resizeLevel()
 {
     int oldRows = (int)board.size();
@@ -1351,7 +1299,6 @@ void Game::resizeLevel()
         getline(cin, colText);
         colText = trim(colText);
     }
-
     int newRows = stoi(rowText);
     int newCols = stoi(colText);
 
@@ -1394,7 +1341,6 @@ void Game::resizeLevel()
 
     cout << "\nLevel resized to " << newRows << " x " << newCols << ".\n";
 }
-
 void Game::renameLevel()
 {
     cout << "\nCurrent level name: " << currentLevelName << "\n";
@@ -1426,10 +1372,38 @@ void Game::renameLevel()
         filesystem::rename(oldPath, getLevelFilePath(newName));
     }
 
+    for (int i = 0; i < (int)levelNames.size(); i++)
+    {
+        if (toUpper(levelNames[i]) == toUpper(oldName))
+        {
+            levelNames[i] = newName;
+            break;
+        }
+    }
+
     currentLevelName = newName;
     cout << "\nLevel renamed to '" << newName << "'.\n";
 }
 
+void Game::addToLevelNames(const string &name)
+{
+    string cleanedName = trim(name);
+    if (cleanedName.empty())
+    {
+        return;
+    }
+
+    string upperName = toUpper(cleanedName);
+    for (int i = 0; i < levelNames.size(); i++)
+    {
+        if (toUpper(levelNames[i]) == upperName)
+        {
+            return;
+        }
+    }
+
+    levelNames.push_back(cleanedName);
+}
 bool Game::saveLevelToFile(const string &levelName) const
 {
     string name = stripLvlExtension(levelName);
@@ -1468,7 +1442,6 @@ bool Game::saveLevelToFile(const string &levelName) const
             }
         }
     }
-
     for (int i = 0; i < guards.size(); i++)
     {
         output << "guard " << guards[i].getRow() << " " << guards[i].getCol() << " "
@@ -1500,7 +1473,6 @@ void Game::clearObjectsAt(int row, int col)
             guards.erase(guards.begin() + i);
         }
     }
-
     for (int i = doors.size() - 1; i >= 0; i--)
     {
         if (doors[i].getRow() == row && doors[i].getCol() == col)
@@ -1516,7 +1488,6 @@ void Game::clearObjectsAt(int row, int col)
             switches.erase(switches.begin() + i);
         }
     }
-
     if (playerRow == row && playerCol == col)
     {
         playerRow = -1;
@@ -1530,21 +1501,20 @@ void Game::placeWall(int row, int col)
     board[row][col] = '#';
     cout << "\nWall placed.\n";
 }
-
+// handles deleting objects and placing empty space
 void Game::placeEmpty(int row, int col)
 {
     clearObjectsAt(row, col);
     board[row][col] = ' ';
     cout << "\nTile cleared.\n";
 }
-
 void Game::placeGoal(int row, int col)
 {
     clearObjectsAt(row, col);
     board[row][col] = '$';
     cout << "\nGoal ($) placed.\n";
 }
-
+// handles adding player to level
 void Game::placePlayer(int row, int col)
 {
     clearObjectsAt(row, col);
@@ -1553,7 +1523,7 @@ void Game::placePlayer(int row, int col)
     playerCol = col;
     cout << "\nPlayer placed.\n";
 }
-
+// two diff types of gaurds
 void Game::placeGuard(int row, int col)
 {
     cout << "Movement type (1=Normal, 2=Patrolling): ";
@@ -1583,7 +1553,6 @@ void Game::placeGuard(int row, int col)
         direction = trim(direction);
         direction = toUpper(direction);
     }
-
     char dirChar = '^';
     if (direction == "W")
         dirChar = '^';
@@ -1599,7 +1568,7 @@ void Game::placeGuard(int row, int col)
     guards.push_back(Guard(row, col, dirChar, movement == "2"));
     cout << "\nGuard placed.\n";
 }
-
+// doors need ID's to their corresponding switches
 void Game::placeDoor(int row, int col)
 {
     cout << "Enter door group id: ";
@@ -1620,7 +1589,7 @@ void Game::placeDoor(int row, int col)
     doors.push_back(Door(row, col, stoi(groupText)));
     cout << "\nDoor placed.\n";
 }
-
+// switches need to have ID's to their corresponding doors, so they can be toggled
 void Game::placeSwitch(int row, int col)
 {
     cout << "Enter switch group id: ";
@@ -1635,13 +1604,12 @@ void Game::placeSwitch(int row, int col)
         getline(cin, groupText);
         groupText = trim(groupText);
     }
-
     clearObjectsAt(row, col);
     board[row][col] = ' ';
     switches.push_back(Switch(row, col, stoi(groupText)));
     cout << "\nSwitch placed.\n";
 }
-
+// shared between editor and game mode
 void Game::inspectTile(int row, int col) const
 {
     cout << "\n--- Inspection ---\n";
@@ -1687,7 +1655,6 @@ void Game::inspectTile(int row, int col) const
             return;
         }
     }
-
     char tile = board[row][col];
     if (tile == '#')
     {
@@ -1706,17 +1673,15 @@ void Game::inspectTile(int row, int col) const
         cout << "Tile contains: " << tile << "\n";
     }
 }
-
 bool Game::isValidTile(int row, int col) const
 {
     return row >= 0 && row < (int)board.size() && col >= 0 && col < (int)board[row].size();
 }
-
+// returns the directory where level files are stored
 string Game::getLevelDirectory() const
 {
     return "levels";
 }
-
 string Game::getLevelFilePath(const string &levelName) const
 {
     return getLevelDirectory() + "/" + levelName + ".lvl";

@@ -44,8 +44,7 @@ private:
     void handleWallPlacement();
     bool readTile(int &row, int &col);
     bool saveLevelToFile(const string &levelName) const;
-    vector<string> listLevelFiles() const;
-    string chooseLevelFile();
+    void addToLevelNames(const string &name);
     void clearObjectsAt(int row, int col);
     void placeWall(int row, int col);
     void placeEmpty(int row, int col);

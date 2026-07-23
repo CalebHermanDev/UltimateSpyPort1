@@ -1,0 +1,21 @@
+9 3
+player 1 1
+wall 0 0
+wall 0 1
+wall 0 2
+wall 2 0
+wall 2 2
+wall 3 0
+wall 3 2
+wall 4 0
+wall 4 2
+wall 5 0
+wall 5 2
+wall 6 0
+wall 7 0
+goal 7 1
+wall 7 2
+wall 8 0
+wall 8 1
+wall 8 2
+guard 6 2 Normal >
